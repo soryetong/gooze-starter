@@ -171,3 +171,17 @@ func DownloadFileAutoExt(url string, filepath string) (string, error) {
 
 	return fullPath, nil
 }
+
+// SaveBytesToFile 保存字节数组到文件
+func SaveBytesToFile(dir, filename string, data []byte) (string, error) {
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return "", fmt.Errorf("创建目录失败: %w", err)
+	}
+
+	fullPath := filepath.Join(dir, filename)
+	if err := os.WriteFile(fullPath, data, 0644); err != nil {
+		return "", fmt.Errorf("写入文件失败: %w", err)
+	}
+
+	return fullPath, nil
+}

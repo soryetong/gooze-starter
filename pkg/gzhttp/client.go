@@ -107,7 +107,7 @@ func DoRequest(cfg RequestConfig) ([]byte, int, error) {
 	return respBody, resp.StatusCode, nil
 }
 
-func DoJSON(cfg RequestConfig, result interface{}) (int, error) {
+func DoRequestAndParseBody(cfg RequestConfig, result interface{}) (int, error) {
 	body, status, err := DoRequest(cfg)
 	if err != nil {
 		return status, err

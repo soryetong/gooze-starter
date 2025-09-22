@@ -33,17 +33,17 @@ func newGormDB(conf *dbConfig) (*gorm.DB, error) {
 		conf.SlowThreshold = 200
 	}
 
-	dsn := ensureTimeout(conf.Dsn, "5s")
+	dsn := conf.Dsn
 	driverArr := strings.Split(conf.Driver, "_")
 	var orm gorm.Dialector
 	switch strings.ToLower(driverArr[0]) {
 	case DbTypeMysql:
 		orm = mysql.New(mysql.Config{
-			DSN:                      dsn,   // DSN data source name
-			DefaultStringSize:        255,   // string 类型字段的默认长度
-			DisableDatetimePrecision: false, // 禁用 datetime 精度，MySQL 5.6 之前的数据库不支持
-			DontSupportRenameIndex:   true,  // 重命名索引时采用删除并新建的方式，MySQL 5.7 之前的数据库和 MariaDB 不支持重命名索引
-			DontSupportRenameColumn:  true,  // 用 `change` 重命名列，My
+			DSN:                      ensureTimeout(conf.Dsn, "5s"), // DSN data source name
+			DefaultStringSize:        255,                           // string 类型字段的默认长度
+			DisableDatetimePrecision: false,                         // 禁用 datetime 精度，MySQL 5.6 之前的数据库不支持
+			DontSupportRenameIndex:   true,                          // 重命名索引时采用删除并新建的方式，MySQL 5.7 之前的数据库和 MariaDB 不支持重命名索引
+			DontSupportRenameColumn:  true,                          // 用 `change` 重命名列，My
 		})
 	case DbTypeSqlite:
 		orm = sqlite.New(sqlite.Config{
@@ -71,7 +71,7 @@ func newGormDB(conf *dbConfig) (*gorm.DB, error) {
 	sqlDB, _ := db.DB()
 	sqlDB.SetMaxIdleConns(conf.MaxIdleConn)
 	sqlDB.SetMaxOpenConns(conf.MaxConn)
-	
+
 	return db, nil
 }
 
