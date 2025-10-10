@@ -140,7 +140,7 @@ func (self *generator) writeHeaderTemplate(filename, logicName, packageName stri
 		"LogicName":      logicName,
 		"PackageName":    packageName,
 		"HasDto":         hasDto,
-		"DtoPackagePath": filepath.Join(self.packageName, self.dtoPackagePath),
+		"DtoPackagePath": filepath.ToSlash(filepath.Join(self.packageName, self.dtoPackagePath)),
 	}
 	content, err := executeTemplate(logicHeaderTemplate, data)
 	if err != nil {
