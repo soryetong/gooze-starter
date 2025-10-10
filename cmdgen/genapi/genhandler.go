@@ -121,8 +121,8 @@ func (self *generator) combineHandlerWrite(service *serviceSpec, filename string
 		headerData := map[string]interface{}{
 			"PackageName":       self.handlerPackageName,
 			"HasDto":            hasDto,
-			"DtoPackagePath":    filepath.Join(self.packageName, self.dtoPackagePath),
-			"LogicPackagePath":  filepath.Join(self.packageName, self.logicPackagePath),
+			"DtoPackagePath":    filepath.ToSlash(filepath.Join(self.packageName, self.dtoPackagePath)),
+			"LogicPackagePath":  filepath.ToSlash(filepath.Join(self.packageName, self.logicPackagePath)),
 			"HasRestFul":        hasRestFul,
 			"LogicPackageName":  self.logicPackageName,
 			"LogicStructName":   logicStructName,

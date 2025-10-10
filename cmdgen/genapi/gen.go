@@ -130,7 +130,7 @@ func (self *generator) start(filename string) (err error) {
 	gzconsole.Echo.Debugf("开始API文件: %s 内容读取", filename)
 
 	newFilePath := gzutil.Ternary(filepath.IsAbs(filename), trimBeforeKeyword(filename, self.packageName), filename)
-	filePathArr := strings.Split(newFilePath, "/")
+	filePathArr := strings.Split(newFilePath, string(filepath.Separator))
 	switch len(filePathArr) {
 	case 2:
 		self.moduleName = ""
