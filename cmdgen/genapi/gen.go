@@ -29,6 +29,7 @@ type gaContext struct {
 	groupName         string
 	nowFilePrefixName string
 	fileFinalName     string
+	hookList          []string
 
 	dtoPackageName string
 	dtoPackagePath string
@@ -146,6 +147,7 @@ func (self *generator) start(filename string) (err error) {
 	nowFilePrefixName := filepath.Base(strings.TrimSuffix(filename, filepath.Ext(filename)))
 	self.fileName = nowFilePrefixName + ".go"
 	self.nowFilePrefixName = nowFilePrefixName
+	self.hookList = append(self.hookList, gzutil.UcFirst(nowFilePrefixName))
 	parts := strings.FieldsFunc(nowFilePrefixName, func(r rune) bool {
 		return r == ',' || r == ';' || r == '|' || r == ':' || r == '_' || r == '-'
 	})

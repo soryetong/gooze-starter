@@ -2,7 +2,6 @@ package gooze
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/soryetong/gooze-starter/gzconsole"
@@ -24,35 +23,40 @@ func init() {
 	gzconsole.RootCmd.PersistentFlags().StringVar(&env, "env", "", "env file")
 	gzconsole.RootCmd.PersistentFlags().BoolVar(&show, "show", true, "Whether to display startup information")
 	gzconsole.RootCmd.CompletionOptions.DisableDefaultCmd = true
-	gzconsole.Register(-1, serviceMgrCmd)
 	gzconsole.RootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		if configFile == "" {
-			gzconsole.Show(getCommands(), getGlobalFlags())
-			os.Exit(-1)
-			return nil
-		}
-
-		if show {
-			gzconsole.Show(getCommands(), getGlobalFlags())
-		}
-
-		// 1. 初始化配置文件
-		if err := LoadConfig(configFile, env, &Config); err != nil {
-			gzconsole.Echo = initSugaredLogger("")
-			return err
-		}
-
-		// 2. 初始化 Echo 输出
-		gzconsole.Echo = initSugaredLogger(Config.App.Env)
-
-		// 3. 初始化日志
-		initILog()
-
-		// 4. 初始化缓存模块
-		Cache = gzcache.New(viper.GetInt("App.CacheCap"), viper.GetInt("App.CacheShard"), time.Duration(viper.GetInt("App.CacheClear")))
-
-		return nil
+		return initialize(configFile, env, show)
 	}
+}
+
+func initialize(configFile, env string, show bool) error {
+	if configFile == "" {
+		return fmt.Errorf("config file is required")
+	}
+
+	if show {
+		gzconsole.Show(getCommands(), getGlobalFlags())
+	}
+
+	// 1. 初始化配置文件
+	if err := LoadConfig(configFile, env, &Config); err != nil {
+		gzconsole.Echo = initSugaredLogger("")
+		return err
+	}
+
+	// 2. 初始化 Echo 输出
+	gzconsole.Echo = initSugaredLogger(Config.App.Env)
+
+	// 3. 初始化日志
+	initILog()
+
+	// 4. 初始化缓存模块
+	Cache = gzcache.New(
+		viper.GetInt("App.CacheCap"),
+		viper.GetInt("App.CacheShard"),
+		time.Duration(viper.GetInt("App.CacheClear")),
+	)
+
+	return nil
 }
 
 func initSugaredLogger(env string) *zap.SugaredLogger {

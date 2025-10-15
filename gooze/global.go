@@ -26,8 +26,18 @@ var (
 )
 
 func Run() {
+	gzconsole.Register(-1, serviceMgrCmd)
 	if err := gzconsole.RootCmd.Execute(); err != nil {
 		gzconsole.Echo.Fatalf("❌  服务启动失败: [%s] \n", err)
+	}
+}
+
+func RunTest(config, env string, show bool) {
+	if err := initialize(config, env, show); err != nil {
+		gzconsole.Echo.Fatalf("初始化失败：[%v]\n", err)
+	}
+	if err := gzconsole.RunStartupTasks(); err != nil {
+		gzconsole.Echo.Fatalf("初始化失败: [%v] \n", err)
 	}
 }
 

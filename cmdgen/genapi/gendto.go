@@ -3,70 +3,118 @@ package genapi
 import (
 	"bytes"
 	"fmt"
+	"go/ast"
 	"go/format"
+	"go/parser"
+	"go/printer"
+	"go/token"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
+	"time"
+
+	"golang.org/x/tools/imports"
 )
 
-func (self *generator) MatchDto(content string) (err error) {
-	self.dtoContents = []*dtoContentsSpec{}
-	structRegex := regexp.MustCompile(`type\s+(\w+)\s*{([^}]*)}`)
-	matches := structRegex.FindAllStringSubmatch(content, -1)
-	for _, match := range matches {
-		name := match[1]
-		fieldsBlock := match[2]
-		fields := []*dtoFieldSpec{}
+func matchType(content string) ([]*dtoContentsSpec, error) {
+	var results []*dtoContentsSpec
 
-		lines := strings.Split(fieldsBlock, "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line) // Remove any leading/trailing whitespace
-			if line == "" {
+	lines := strings.Split(content, "\n")
+	var buf []string
+	var structName string
+	inStruct := false
+
+	for _, line := range lines {
+		lineTrim := strings.TrimSpace(line)
+		if strings.HasPrefix(lineTrim, "type ") && strings.HasSuffix(lineTrim, "{") {
+			parts := strings.Fields(lineTrim)
+			if len(parts) < 2 {
 				continue
 			}
-			field, err := self.parseDtoFieldDeclaration(line)
-			if err != nil {
-				continue
-			}
-
-			fields = append(fields, field)
+			structName = parts[1]
+			inStruct = true
+			buf = append(buf, fmt.Sprintf("type %s struct {", structName))
+			continue
 		}
-
-		self.dtoContents = append(self.dtoContents, &dtoContentsSpec{
-			Name:   name,
-			Fields: fields,
-		})
+		if inStruct {
+			buf = append(buf, line)
+			if lineTrim == "}" {
+				src := "package p\n\n" + strings.Join(buf, "\n")
+				spec, err := parseStruct(structName, src)
+				if err != nil {
+					return nil, err
+				}
+				results = append(results, spec)
+				// reset
+				inStruct = false
+				buf = nil
+				structName = ""
+			}
+		}
 	}
-
-	return nil
+	return results, nil
 }
 
-func (self *generator) parseDtoFieldDeclaration(declaration string) (*dtoFieldSpec, error) {
-	regexPattern := `^\s*(?:(\w+)\s+)?([\w\*\[\]]+)(?:\s+` + "`" + `([^` + "`" + `]*)` + "`" + `)?\s*$`
-	re := regexp.MustCompile(regexPattern)
-
-	matches := re.FindStringSubmatch(declaration)
-	if matches == nil || len(matches) < 3 {
-		return nil, fmt.Errorf("invalid field declaration format: %s", declaration)
+func parseStruct(name, src string) (*dtoContentsSpec, error) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "src.go", src, parser.ParseComments)
+	if err != nil {
+		return nil, fmt.Errorf("parse error: %w\n--- source ---\n%s\n--- end ---", err, src)
 	}
 
-	field := &dtoFieldSpec{
-		Name: matches[1],
-		Type: matches[2],
+	var result = &dtoContentsSpec{Name: name}
+	// 遍历 AST
+	for _, decl := range file.Decls {
+		gd, ok := decl.(*ast.GenDecl)
+		if !ok || gd.Tok != token.TYPE {
+			continue
+		}
+		for _, spec := range gd.Specs {
+			ts, ok := spec.(*ast.TypeSpec)
+			if !ok {
+				continue
+			}
+			st, ok := ts.Type.(*ast.StructType)
+			if !ok {
+				continue
+			}
+			for _, field := range st.Fields.List {
+				// 可能有多个字段名（如 A,B int）
+				for _, nameIdent := range field.Names {
+					var buf bytes.Buffer
+					_ = printer.Fprint(&buf, fset, field.Type)
+					typ := buf.String()
+
+					tag := ""
+					if field.Tag != nil {
+						tag = strings.Trim(field.Tag.Value, "`")
+					}
+					comment := ""
+					if field.Comment != nil {
+						comment = strings.TrimSpace(field.Comment.Text())
+					}
+
+					result.Fields = append(result.Fields, &dtoFieldSpec{
+						Name:    nameIdent.Name,
+						Type:    typ,
+						Tag:     tag,
+						Comment: comment,
+					})
+				}
+			}
+		}
+	}
+	return result, nil
+}
+
+func (self *generator) MatchDto(content string) (err error) {
+	specs, err := matchType(content)
+	if err != nil {
+		return err
 	}
 
-	// 处理标签（如果存在）
-	if len(matches) > 3 && matches[3] != "" {
-		field.Tag = matches[3]
-	}
-
-	// 处理注释（如果存在）
-	if len(matches) > 4 && matches[4] != "" {
-		field.Comment = strings.TrimSpace(matches[4])
-	}
-
-	return field, nil
+	self.dtoContents = specs
+	return nil
 }
 
 func (self *generator) GenDto() (err error) {
@@ -75,64 +123,52 @@ func (self *generator) GenDto() (err error) {
 		return err
 	}
 
-	for _, dtoContents := range self.dtoContents {
-		if err = self.writeToTypeFile(filename, self.formatStruct(dtoContents)); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (self *generator) formatStruct(s *dtoContentsSpec) string {
-	structDef := fmt.Sprintf("type %s struct {\n", s.Name)
-	for _, field := range s.Fields {
-		tag := ""
-		if field.Tag != "" {
-			tag = fmt.Sprintf(" `%s`", field.Tag)
-		}
-
-		structDef += fmt.Sprintf("\t%s %s%s\n", field.Name, field.Type, tag)
-
-	}
-	structDef += "}\n\n"
-
-	return structDef
-}
-
-// writeToTypeFile writes or updates a Go struct in the specified file.
-func (self *generator) writeToTypeFile(filename, structContent string) error {
-	structNameRegex := regexp.MustCompile(`(?m)^type\s+(\w+)\s+struct\b`)
-	matches := structNameRegex.FindStringSubmatch(structContent)
-	if len(matches) < 2 {
-		return fmt.Errorf("struct name not found in struct definition")
-	}
-	structName := matches[1]
-	existingContent, err := os.ReadFile(filename)
-	if err != nil && !os.IsNotExist(err) {
+	structs, err := generateStructs(self.dtoPackageName, self.dtoContents)
+	if err != nil {
 		return err
 	}
-	existingCode := string(existingContent)
-	structRegex := regexp.MustCompile(fmt.Sprintf(`(?ms)^type\s+%s\s+struct\s*\{.*?\}\s*(?:\n|$)`, structName))
-	cleanedContent := structRegex.ReplaceAllString(existingCode, "")
 
-	var buffer bytes.Buffer
-	if !strings.Contains(existingCode, "package ") {
-		buffer.WriteString(fmt.Sprintf("package %s\n\n", self.dtoPackageName))
+	return os.WriteFile(filename, []byte(structs), 0644)
+}
+
+// generateStructs converts []*dtoContentsSpec into Go source code
+func generateStructs(pkgName string, specs []*dtoContentsSpec) (string, error) {
+	var buf bytes.Buffer
+	now := time.Now().Format(time.DateTime)
+	buf.WriteString("// Code generated by gooze-starter. DO NOT EDIT.\n")
+	buf.WriteString(fmt.Sprintf("// This file was generated at: %s\n\n", now))
+	buf.WriteString(fmt.Sprintf("package %s\n\n", pkgName))
+
+	for _, s := range specs {
+		buf.WriteString(fmt.Sprintf("type %s struct {\n", s.Name))
+		for _, f := range s.Fields {
+			tag := ""
+			if f.Tag != "" {
+				tag = fmt.Sprintf(" `%s`", f.Tag)
+			}
+			comment := ""
+			if f.Comment != "" {
+				comment = " // " + f.Comment
+			}
+			buf.WriteString(fmt.Sprintf("\t%s %s%s%s\n", f.Name, f.Type, tag, comment))
+		}
+		buf.WriteString("}\n\n")
 	}
 
-	if strings.TrimSpace(cleanedContent) != "" {
-		buffer.WriteString(strings.TrimSpace(cleanedContent))
-		buffer.WriteString("\n\n")
-	}
-
-	buffer.WriteString(strings.TrimSpace(structContent))
-	buffer.WriteString("\n")
-
-	formattedCode, err := format.Source(buffer.Bytes())
+	formatted, err := imports.Process("", buf.Bytes(), &imports.Options{
+		Comments:   true,
+		TabIndent:  true,
+		TabWidth:   8,
+		FormatOnly: false,
+	})
 	if err != nil {
-		return fmt.Errorf("failed to format Go code: %w\nGenerated Code:\n%s", err, buffer.String())
+		return "", fmt.Errorf("goimports failed: %w\n--- code ---\n%s", err, buf.String())
 	}
 
-	return os.WriteFile(filename, formattedCode, 0644)
+	formatted, err = format.Source(formatted)
+	if err != nil {
+		return "", fmt.Errorf("format failed: %w\n--- code ---\n%s", err, string(formatted))
+	}
+
+	return string(formatted), nil
 }
