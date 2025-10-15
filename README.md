@@ -105,4 +105,13 @@ go mod tidy
 
 gooze-starter 是根据MIT许可证发布的。有关更多信息，请参见 [LICENSE](LICENSE) 文件。
 
+## 备注:
+-----
+
+**感觉不错请star, 谢谢!**
+
+**欢迎加入 gooze-starter QQ交流群:980872596，与大家共同成长**
+
+提交bug及特性: https://github.com/soryetong/gooze-starter/issues
+
 <br>
