@@ -5,7 +5,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"path"
 	"strings"
 	"time"
 
@@ -109,7 +108,7 @@ func getLogWriter(enableWriter bool) logger.Writer {
 		}
 		fileName := fmt.Sprintf("%s%s/mysqlmodule.log", logPath, time.Now().Format("2006-01-02"))
 		writer = &lumberjack.Logger{
-			Filename:   path.Join(logPath, fileName),
+			Filename:   fileName,
 			MaxSize:    viper.GetInt("Log.MaxSize"),    // 单文件最大容量, 单位是MB
 			MaxBackups: viper.GetInt("Log.MaxBackups"), // 最大保留过期文件个数
 			MaxAge:     viper.GetInt("Log.MaxAge"),     // 保留过期文件的最大时间间隔, 单位是天
