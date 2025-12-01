@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -15,10 +16,10 @@ import (
 )
 
 const (
-	MethodGet    = "GET"
-	MethodPost   = "POST"
-	MethodPut    = "PUT"
-	MethodDelete = "DELETE"
+	MethodGET    = "GET"
+	MethodPOST   = "POST"
+	MethodPUT    = "PUT"
+	MethodDELETE = "DELETE"
 )
 
 // RequestConfig 封装请求参数
@@ -26,7 +27,8 @@ type RequestConfig struct {
 	Method    string
 	Url       string
 	Headers   map[string]string
-	Params    map[string]interface{}
+	Params    map[string]interface{} // POST PUT 请求时, 和 BodyByte 二选一
+	BodyByte  []byte                 // POST PUT 请求时, 和 Params 二选一
 	Timeout   time.Duration
 	Proxy     string
 	TLSConfig *tls.Config
@@ -38,10 +40,15 @@ func DoRequest(cfg RequestConfig) ([]byte, int, error) {
 	if err != nil {
 		return nil, 0, err
 	}
+
+	if cfg.BodyByte != nil && cfg.Params != nil {
+		return nil, 0, errors.New("请确保 body 参数只存在一种")
+	}
+
 	var bodyReader io.Reader
 
 	method := strings.ToUpper(cfg.Method)
-	if method == "GET" || method == "DELETE" {
+	if method == MethodGET || method == MethodDELETE {
 		q := parsedUrl.Query()
 		for k, v := range cfg.Params {
 			q.Set(k, cast.ToString(v))
@@ -60,6 +67,8 @@ func DoRequest(cfg RequestConfig) ([]byte, int, error) {
 			if _, ok := cfg.Headers["Content-Type"]; !ok {
 				cfg.Headers["Content-Type"] = "application/json"
 			}
+		} else if cfg.BodyByte != nil {
+			bodyReader = bytes.NewBuffer(cfg.BodyByte)
 		}
 	}
 
@@ -107,12 +116,12 @@ func DoRequest(cfg RequestConfig) ([]byte, int, error) {
 	return respBody, resp.StatusCode, nil
 }
 
-func DoRequestAndParseBody(cfg RequestConfig, result interface{}) (int, error) {
+func DoRequestAndParseBody(cfg RequestConfig, result interface{}) ([]byte, int, error) {
 	body, status, err := DoRequest(cfg)
 	if err != nil {
-		return status, err
+		return body, status, err
 	}
 
 	err = json.Unmarshal(body, result)
-	return status, err
+	return body, status, err
 }

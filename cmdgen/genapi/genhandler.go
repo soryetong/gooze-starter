@@ -22,6 +22,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/soryetong/gooze-starter/gooze"
 	{{- if .HasRestFul }}
+	"errors"
 	"github.com/spf13/cast"
 	"github.com/soryetong/gooze-starter/pkg/gzutil"
 	{{- end }}
@@ -33,34 +34,6 @@ import (
 )
 
 var {{.LogicInstanceName}} = {{.LogicPackageName}}.New{{.LogicStructName}}()
-
-// 每个 handler 对应一个 Hook 变量，通过该 hook 变量可定制实现自定义内容 
-type {{.UcName}}CustomHandler interface {
-{{- range .Hooks}}
-    {{.RouteName}}Hook(ctx *gin.Context{{if .RequestType}}, req *{{.DtoPackageName}}.{{.RequestType}}{{end}}) (bool, error)
-{{- end}}
-}
-
-var {{.LcName}}CustomHandler {{.UcName}}CustomHandler = &default{{.UcName}}CustomHandler{}
-
-// Set{{.UcName}}CustomHandler 用于注入自定义实现
-func Set{{.UcName}}CustomHandler(h {{.UcName}}CustomHandler) {
-    if h == nil {
-        {{.LcName}}CustomHandler = &default{{.UcName}}CustomHandler{}
-        return
-    }
-
-    {{.LcName}}CustomHandler = h
-}
-
-// default no-op 实现
-type default{{.UcName}}CustomHandler struct{}
-
-{{- range .Hooks}}
-func (d *default{{.UcName}}CustomHandler) {{.RouteName}}Hook(ctx *gin.Context{{if .RequestType}}, req *{{.DtoPackageName}}.{{.RequestType}}{{end}}) (bool, error) {
-    return false, nil
-}
-{{- end}}
 `
 
 const handlerContentTemplate = `
@@ -76,65 +49,43 @@ const handlerContentTemplate = `
 // @Success 200 {{if .ResponseType}}{object} {{.DtoPackageName}}.{{.ResponseType}} {{ else }}string success {{ end }}
 // @Failure 200 {object} gooze.Response 根据Code表示不同类型的错误
 // @Router {{ .Path }} [{{ .Method}}]
-func {{ .HandlerName }}(ctx *gin.Context) {
+func {{ .HandlerName }}(ctx *gin.Context) error {
 {{if .PathParam}} id := cast.ToInt64(ctx.Param("{{.PathParam}}"))
 	if !gzutil.IsValidNumber(id) {
-		gooze.FailWithMessage(ctx, "参数错误")
-		return
+		return errors.New("参数错误")
 	}
 {{end}}{{if .RequestType}}	var req {{.DtoPackageName}}.{{.RequestType}}
 	if err := ctx.ShouldBind(&req); err != nil {
-		gooze.FailWithMessage(ctx, gzerror.Trans(err))
-		return
+		return gzerror.TransErr(err)
 	}
-
-	if handled, err := {{.LcName}}CustomHandler.{{ .RouteName }}Hook(ctx, &req); handled {
-		return
-	} else if err != nil {
-        gooze.FailWithMessage(ctx, err.Error())
-        return
-    }
 
 	{{if .ResponseType}}resp, err := {{ .LogicPackageName}}.{{ .LogicFuncName}}(ctx{{if .PathParam}}, id{{end}}, &req)
 	if err != nil {
-		gooze.FailWithMessage(ctx, err.Error())
-		return
+		return err
 	}
-	gooze.Success(ctx, resp){{else}}if err := {{ .LogicPackageName}}.{{ .LogicFuncName}}(ctx{{if .PathParam}}, id{{end}}, &req); err != nil {
-		gooze.FailWithMessage(ctx, err.Error())
-		return
-	}
-	gooze.Success(ctx, nil){{end}}{{else}}if handled, err := {{.LcName}}CustomHandler.{{ .RouteName }}Hook(ctx); handled {
-		return
-	} else if err != nil {
-        gooze.FailWithMessage(ctx, err.Error())
-        return
-    }
 
-	{{if .ResponseType}}resp, err := {{ .LogicPackageName}}.{{ .LogicFuncName}}(ctx{{if .PathParam}}, id{{end}})
+	gooze.Success(ctx, resp)
+	return nil{{else}}if err := {{ .LogicPackageName}}.{{ .LogicFuncName}}(ctx{{if .PathParam}}, id{{end}}, &req); err != nil {
+		return err
+	}
+
+	gooze.Success(ctx, nil)
+	return nil{{end}}{{else}}{{if .ResponseType}}resp, err := {{ .LogicPackageName}}.{{ .LogicFuncName}}(ctx{{if .PathParam}}, id{{end}})
 	if err != nil {
-		gooze.FailWithMessage(ctx, err.Error())
-		return
+		return err
 	}
-	gooze.Success(ctx, resp){{else}}if err := {{ .LogicPackageName}}.{{ .LogicFuncName}}(ctx{{if .PathParam}}, id{{end}}); err != nil {
-		gooze.FailWithMessage(ctx, err.Error())
-		return
+
+	gooze.Success(ctx, resp)
+	return nil{{else}}if err := {{ .LogicPackageName}}.{{ .LogicFuncName}}(ctx{{if .PathParam}}, id{{end}}); err != nil {
+		return err
 	}
-	gooze.Success(ctx, nil){{end}}{{end}}
+
+	gooze.Success(ctx, nil)
+	return nil{{end}}{{end}}
 }
 `
 
 func (self *generator) GenHandler() (err error) {
-	for _, service := range self.services {
-		if service.Name == "" {
-			continue
-		}
-
-		if err = self.combineCustomWrite(service, ""); err != nil {
-			return err
-		}
-	}
-
 	filename := filepath.Join(self.output, self.moduleName, self.handlerPackageName, self.nowFilePrefixName+"_gen.go")
 	// 删除目标文件（如果存在）
 	if err := os.Remove(filename); err != nil && !os.IsNotExist(err) {
@@ -157,19 +108,9 @@ func (self *generator) GenHandler() (err error) {
 	return nil
 }
 
-type HookConfig struct {
-	RouteName      string
-	FuncName       string
-	DtoPackageName string
-	RequestType    string
-	UcName         string
-	LcName         string
-}
-
 func (self *generator) combineHandlerWrite(service *serviceSpec, filename string) error {
 	hasDto := false
 	hasRestFul := false
-	hooks := []HookConfig{}
 	for _, route := range service.Routes {
 		if !hasDto && route.RequestType != "" {
 			hasDto = true
@@ -177,35 +118,25 @@ func (self *generator) combineHandlerWrite(service *serviceSpec, filename string
 		if !hasRestFul && route.RustFulKey != "" {
 			hasRestFul = true
 		}
+	}
 
-		hooks = append(hooks, HookConfig{
-			FuncName:       gzutil.UcFirst(service.Name) + route.Name,
-			DtoPackageName: self.dtoPackageName,
-			RequestType:    route.RequestType,
-			UcName:         gzutil.UcFirst(service.Name),
-			LcName:         gzutil.LcFirst(service.Name),
-			RouteName:      gzutil.UcFirst(route.Name),
-		})
+	logicStructName := self.logicName[strings.ToLower(service.Name)]
+	headerData := map[string]interface{}{
+		"NowTime":           time.Now().Format(time.DateTime),
+		"PackageName":       self.handlerPackageName,
+		"HasDto":            hasDto,
+		"DtoPackagePath":    filepath.ToSlash(filepath.Join(self.packageName, self.dtoPackagePath)),
+		"LogicPackagePath":  filepath.ToSlash(filepath.Join(self.packageName, self.logicPackagePath)),
+		"HasRestFul":        hasRestFul,
+		"LogicPackageName":  self.logicPackageName,
+		"LogicStructName":   logicStructName,
+		"LogicInstanceName": gzutil.LcFirst(logicStructName),
+		"UcName":            gzutil.UcFirst(service.Name),
+		"LcName":            gzutil.LcFirst(service.Name),
 	}
 
 	// 如果文件不存在，先写 header
-	logicStructName := self.logicName[strings.ToLower(service.Name)]
 	if _, err := os.Stat(filename); errors.Is(err, os.ErrNotExist) {
-		headerData := map[string]interface{}{
-			"NowTime":           time.Now().Format(time.DateTime),
-			"PackageName":       self.handlerPackageName,
-			"HasDto":            hasDto,
-			"DtoPackagePath":    filepath.ToSlash(filepath.Join(self.packageName, self.dtoPackagePath)),
-			"LogicPackagePath":  filepath.ToSlash(filepath.Join(self.packageName, self.logicPackagePath)),
-			"HasRestFul":        hasRestFul,
-			"LogicPackageName":  self.logicPackageName,
-			"LogicStructName":   logicStructName,
-			"LogicInstanceName": gzutil.LcFirst(logicStructName),
-			"Hooks":             hooks,
-			"UcName":            gzutil.UcFirst(service.Name),
-			"LcName":            gzutil.LcFirst(service.Name),
-		}
-
 		headerStr, err := executeTemplate(handlerHeaderTemplate, headerData)
 		if err != nil {
 			return err
@@ -274,95 +205,4 @@ func writeToFile(filename string, content string, append bool) error {
 	defer f.Close()
 	_, err = f.WriteString(content)
 	return err
-}
-
-const handlerCustomTemplate = `
-package {{.PackageName}}
-
-import (
-	"github.com/gin-gonic/gin"
-	{{- if .HasDto }}
-	"{{ .DtoPackagePath }}"
-	{{- end }}
-)
-
-// {{ .UcName }}CustomHandlerImp 由开发者实现，支持依赖注入。
-type {{ .UcName }}CustomHandlerImp struct {
-	// 可以在这里声明依赖，并且在 New{{ .UcName }}CustomHandlerImp() 中进行构造
-}
-
-func New{{ .UcName }}CustomHandlerImp() *{{ .UcName }}CustomHandlerImp {
-	return &{{ .UcName }}CustomHandlerImp{}
-}
-{{- if .HookName }}
-func (self *{{ .UcName }}CustomHandlerImp) {{ .HookName }}(ctx *gin.Context{{if .RequestType}}, req *{{.DtoPackageName}}.{{.RequestType}}{{end}}) (bool, error) {
-	// TODO: add your custom logic, e.g. file upload, validation, DI service usage
-	return false, nil
-}
-{{- end }}
-`
-
-func (self *generator) combineCustomWrite(service *serviceSpec, filename string) error {
-	var hasDto bool
-	for _, route := range service.Routes {
-		if route.RequestType != "" {
-			hasDto = true
-		}
-	}
-	customFile := filepath.Join(self.output, self.moduleName, self.handlerPackageName, self.nowFilePrefixName+"_custom.go")
-	if err := os.MkdirAll(filepath.Dir(customFile), os.ModePerm); err != nil {
-		return err
-	}
-
-	if _, err := os.Stat(customFile); errors.Is(err, os.ErrNotExist) {
-		headerData := map[string]interface{}{
-			"PackageName":    self.handlerPackageName,
-			"HasDto":         hasDto,
-			"DtoPackagePath": filepath.Join(self.packageName, self.dtoPackagePath),
-			"UcName":         gzutil.UcFirst(service.Name),
-			"HookName":       "", // 首次生成时可留空
-			"DtoPackageName": self.dtoPackageName,
-			"RequestType":    "",
-		}
-		headerStr, err := executeTemplate(handlerCustomTemplate, headerData)
-		if err != nil {
-			return err
-		}
-		if err := writeToFile(customFile, headerStr, false); err != nil {
-			return err
-		}
-	}
-
-	content, _ := os.ReadFile(customFile)
-	for _, route := range service.Routes {
-		hookName := gzutil.UcFirst(route.Name) + "Hook"
-		if strings.Contains(string(content), "func (self *"+gzutil.UcFirst(service.Name)+"CustomHandlerImp) "+hookName+"(") {
-			continue
-		}
-
-		hookData := map[string]interface{}{
-			"PackageName":    self.handlerPackageName,
-			"HasDto":         route.RequestType != "",
-			"DtoPackagePath": filepath.Join(self.packageName, self.dtoPackagePath),
-			"UcName":         gzutil.UcFirst(service.Name),
-			"HookName":       hookName,
-			"DtoPackageName": self.dtoPackageName,
-			"RequestType":    route.RequestType,
-		}
-		hookStr, err := executeTemplate(`
-func (self *{{ .UcName }}CustomHandlerImp) {{ .HookName }}(ctx *gin.Context{{if .RequestType}}, req *{{.DtoPackageName}}.{{.RequestType}}{{end}}) (bool, error) {
-	// TODO: add your custom logic, e.g. file upload, validation, DI service usage
-	return false, nil
-}
-`, hookData)
-		if err != nil {
-			return err
-		}
-
-		if err := writeToFile(customFile, "\n"+hookStr, true); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }

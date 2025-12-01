@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/url"
 	"os/exec"
 	"reflect"
@@ -213,6 +214,9 @@ func RemoveDomain(rawURL string) string {
 
 // JoinDomain 将域名和 URL 路径拼接为完整 URL
 func JoinDomain(domain string, path string) string {
+	if path == "" {
+		return ""
+	}
 	if !strings.HasPrefix(domain, "http://") && !strings.HasPrefix(domain, "https://") {
 		domain = "http://" + domain
 	}
@@ -367,4 +371,54 @@ func Ternary[T any](condition bool, trueVal, falseVal T) T {
 		return trueVal
 	}
 	return falseVal
+}
+
+// 合并切片
+func MergeSlice[T any](a, b []T) []T {
+	la, lb := len(a), len(b)
+	if lb == 0 {
+		return a
+	}
+	if la == 0 {
+		return b
+	}
+	out := make([]T, la+lb)
+	copy(out, a)
+	copy(out[la:], b)
+	return out
+}
+
+// 移除切片中的元素, 第一个参数基值, 第二个参数待移除的元素
+func RemoveSliceElements[T comparable](a, b []T) []T {
+	toRemove := make(map[T]struct{}, len(b))
+	for _, v := range b {
+		toRemove[v] = struct{}{}
+	}
+
+	out := make([]T, 0, len(a))
+	for _, v := range a {
+		if _, found := toRemove[v]; !found {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// 去重
+func Unique[T comparable](items []T) []T {
+	seen := make(map[T]struct{})
+	result := make([]T, 0, len(items))
+
+	for _, item := range items {
+		if _, ok := seen[item]; !ok {
+			seen[item] = struct{}{}
+			result = append(result, item)
+		}
+	}
+
+	return result
+}
+
+func RandOne[T any](list []T) T {
+	return list[rand.Intn(len(list))]
 }

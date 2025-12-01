@@ -10,9 +10,9 @@ import (
 
 type local struct{}
 
-func (*local) Upload(file multipart.File, fileHeader *multipart.FileHeader, uploadDir ...string) (*UploadRet, error) {
+func (*local) Upload(file *multipart.FileHeader, uploadDir ...string) (*UploadRet, error) {
 	// 获取上传目录和文件名
-	savePathUri, filename := getUploadDirAndFilename(fileHeader, uploadDir...)
+	savePathUri, filename := getUploadDirAndFilename(file, uploadDir...)
 
 	// 检查并创建上传目录
 	isPath, mkdirErr := gzutil.FileIsExist(savePathUri)
@@ -25,13 +25,30 @@ func (*local) Upload(file multipart.File, fileHeader *multipart.FileHeader, uplo
 
 	// 保存文件
 	filePath := filepath.Join(savePathUri, filename)
-	if err := gzutil.SaveFile(fileHeader, filePath); err != nil {
+	if err := gzutil.SaveFile(file, filePath); err != nil {
 		return nil, err
 	}
 
 	return &UploadRet{
 		Hash:     gzutil.Md5Encode(filePath),
 		Filename: filename,
-		Url:      gzutil.AssembleServerPath(filePath),
+		Url:      filePath,
+	}, nil
+}
+
+func (self *local) UploadByByte(fileBytes []byte, uploadDir ...string) (*UploadRet, error) {
+	savePathUri, filename := getUploadDirAndFilenameByBytes(fileBytes, ".png", uploadDir...)
+	if err := os.MkdirAll(savePathUri, 0755); err != nil {
+		return nil, err
+	}
+
+	fullPath := savePathUri + filename
+	err := os.WriteFile(fullPath, fileBytes, 0644)
+	if err != nil {
+		return nil, err
+	}
+	return &UploadRet{
+		Filename: filename,
+		Url:      fullPath,
 	}, nil
 }

@@ -21,13 +21,14 @@ package router
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/soryetong/gooze-starter/gooze"
 	"{{ .HandlerPackPath}}"
 )
 
 func Init{{.NowGroupName}}Router(routerGroup *gin.RouterGroup) {
 {{range .Routes}}{{.GroupName}}Group := routerGroup.Group("/{{.RouteGroup}}")
 {{"{"}}{{range .Routes}}
-	{{.GroupName}}Group.{{.Method}}("/{{.Path}}", {{.HandlerPackName}}.{{.HandlerName}}){{end}}
+	{{.GroupName}}Group.{{.Method}}("/{{.Path}}", gooze.Adapter({{.HandlerPackName}}.{{.HandlerName}})){{end}}
 {{"}"}}{{end}}
 }
 `
@@ -36,7 +37,7 @@ const routerFuncContent = `
 func Init{{.NowGroupName}}Router(routerGroup *gin.RouterGroup) {
 {{range .Routes}}{{.GroupName}}Group := routerGroup.Group("/{{.RouteGroup}}")
 {{"{"}}{{range .Routes}}
-	{{.GroupName}}Group.{{.Method}}("/{{.Path}}", {{.HandlerPackName}}.{{.HandlerName}}){{end}}
+	{{.GroupName}}Group.{{.Method}}("/{{.Path}}", gooze.Adapter({{.HandlerPackName}}.{{.HandlerName}})){{end}}
 {{"}"}}{{end}}
 }
 `
@@ -300,11 +301,11 @@ import (
 func InitRouter() *gin.Engine {
 	setMode()
 
-	r := gin.Default()
+	r := gin.New()
 	fs := "/static"
 	r.StaticFS(fs, http.Dir("./"+fs))
 
-	r.Use(gzmiddleware.Begin()).Use(gzmiddleware.Cross()){{if .NeedRequestLog}}.Use(gzmiddleware.RequestLog()){{end}}
+	r.Use(gzmiddleware.Begin()).Use(gzmiddleware.ErrorHandler()).Use(gzmiddleware.Cross()){{if .NeedRequestLog}}.Use(gzmiddleware.RequestLog()){{end}}
 	publicGroup := r.Group("{{ .RouterPrefix}}")
 	{
 		// 健康监测

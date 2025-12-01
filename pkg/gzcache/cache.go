@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/soryetong/gooze-starter/pkg/gzutil"
+	"github.com/spf13/cast"
 )
 
 // listNode 是 LRU 链表的节点
@@ -54,7 +55,13 @@ func New(capacity int, shardCount int, cleanInterval time.Duration) *CacheNode {
 		count = shardCount
 	}
 
-	shardCap := (capacity + count - 1) / count
+	var shardCap int
+	if capacity > 0 {
+		shardCap = (capacity + count - 1) / count
+	} else {
+		shardCap = 0
+	}
+
 	c := &CacheNode{
 		shards:        make([]*shard, count),
 		shardMask:     uint64(count - 1),
@@ -104,8 +111,9 @@ func (c *CacheNode) Set(key string, value any, ttl time.Duration) {
 
 	if node, exists := s.items[key]; exists {
 		node.value = value
+		node.ttl = ttl
 		node.expiresAt = expiresAt
-		s.moveToHead(node) // 更新了，移到头部
+		s.moveToHead(node)
 	} else {
 		// 新节点添加到 map 和链表头部
 		newNode := &listNode{
@@ -125,7 +133,22 @@ func (c *CacheNode) Set(key string, value any, ttl time.Duration) {
 	}
 }
 
+// GetString获取一个字符串类型的缓存项）
+func (c *CacheNode) GetString(key string) string {
+	value, exists := c.Get(key)
+
+	return gzutil.Ternary(!exists, "", cast.ToString(value))
+}
+
+// 获取一个整数类型的缓存项
+func (c *CacheNode) GetInt64(key string) int64 {
+	value, exists := c.Get(key)
+
+	return gzutil.Ternary(!exists, 0, cast.ToInt64(value))
+}
+
 // Get 获取一个缓存项，自动清理过期项
+// 注：本实现采用 "访问即续命（sliding expiration）" 行为：每次访问如果该条目有 ttl (>0)，会延长其过期时间。
 func (c *CacheNode) Get(key string) (any, bool) {
 	s := c.getShard(key)
 	s.mu.Lock()
@@ -144,13 +167,14 @@ func (c *CacheNode) Get(key string) (any, bool) {
 		return nil, false
 	}
 
-	// 未过期，自动续期并将其移动到链表头部 (标记为最近使用)
-	node.expiresAt = time.Now().Add(node.ttl)
+	if node.ttl > 0 {
+		node.expiresAt = time.Now().Add(node.ttl)
+	}
 	s.moveToHead(node)
 	return node.value, true
 }
 
-// Delete 删除一个缓存项
+// Delete 删除一个缓存项（会触发 onEvict）
 func (c *CacheNode) Delete(key string) {
 	s := c.getShard(key)
 	s.mu.Lock()
@@ -194,10 +218,15 @@ func (c *CacheNode) Keys() []string {
 	return keys
 }
 
-// Purge 清空整个缓存
+// Purge 清空整个缓存（触发 onEvict 回调以通知外部每个被清理的项）
 func (c *CacheNode) Purge() {
 	for _, s := range c.shards {
 		s.mu.Lock()
+		if c.onEvict != nil {
+			for _, node := range s.items {
+				c.onEvict(node.key, node.value)
+			}
+		}
 		s.items = make(map[string]*listNode)
 		s.head = nil
 		s.tail = nil
@@ -208,14 +237,15 @@ func (c *CacheNode) Purge() {
 
 // Close 停止定期清理协程（如果有）
 func (c *CacheNode) Close() {
-	if c.cleanerRunning.Load() {
-		close(c.cleanerStop)
+	if c.cleanerRunning.CompareAndSwap(true, false) {
+		if c.cleanerStop != nil {
+			close(c.cleanerStop)
+		}
 	}
 }
 
 // --- shard 内部 LRU 链表操作 ---
-
-// addNode 将新节点添加到链表头部
+// addNode 将新节点添加到链表头部（内部操作，不触发 onEvict）
 func (s *shard) addNode(node *listNode) {
 	node.prev = nil
 	node.next = s.head
@@ -228,8 +258,8 @@ func (s *shard) addNode(node *listNode) {
 	}
 }
 
-// removeNode 从链表中移除一个节点
-func (s *shard) removeNode(node *listNode) {
+// unlink 从链表中解绑一个节点（不触发 onEvict）
+func (s *shard) unlink(node *listNode) {
 	if node.prev != nil {
 		node.prev.next = node.next
 	} else {
@@ -241,6 +271,11 @@ func (s *shard) removeNode(node *listNode) {
 		s.tail = node.prev
 	}
 	node.prev, node.next = nil, nil
+}
+
+// removeNode 从链表中移除一个节点并触发 onEvict（如果设置了回调）
+func (s *shard) removeNode(node *listNode) {
+	s.unlink(node)
 
 	if s.parent.onEvict != nil {
 		s.parent.onEvict(node.key, node.value)
@@ -248,29 +283,32 @@ func (s *shard) removeNode(node *listNode) {
 }
 
 // moveToHead 将节点移动到链表头部，表示最近使用
+// 使用 unlink 而不是 removeNode，以避免触发 onEvict
 func (s *shard) moveToHead(node *listNode) {
 	if node == s.head { // 已经是头部，无需移动
 		return
 	}
-	s.removeNode(node)
+	s.unlink(node)
 	s.addNode(node)
 }
 
-// removeLRU 移除链表末尾的节点，表示最近最少使用
+// removeLRU 移除链表末尾的节点，表示最近最少使用（并触发 onEvict）
 func (s *shard) removeLRU() {
 	if s.tail == nil {
 		return
 	}
-	s.removeNode(s.tail)
-	delete(s.items, s.tail.key)
+	node := s.tail
+	s.removeNode(node)
+	delete(s.items, node.key)
 	s.count.Add(-1)
 }
 
 // 启动后台协程定期清理所有过期项
 func (c *CacheNode) startCleaner() {
-	if c.cleanerRunning.Swap(true) {
+	if !c.cleanerRunning.CompareAndSwap(false, true) {
 		return
 	}
+
 	c.cleanerStop = make(chan struct{})
 
 	gzutil.SafeGo(func() {
@@ -281,6 +319,7 @@ func (c *CacheNode) startCleaner() {
 			case <-ticker.C:
 				c.cleanExpired()
 			case <-c.cleanerStop:
+				c.cleanerRunning.Store(false)
 				return
 			}
 		}

@@ -13,12 +13,14 @@ var (
 	src        string
 	output     string
 	requestLog bool
+	handlerV2  bool
 )
 
 func init() {
 	CmdGen.PersistentFlags().StringVar(&src, "src", "", "Path to API description")
 	CmdGen.PersistentFlags().StringVar(&output, "output", "", "Output path for generated code")
 	CmdGen.PersistentFlags().BoolVar(&requestLog, "log", false, "Open request Log")
+	CmdGen.PersistentFlags().BoolVar(&handlerV2, "handlerV2", false, "Use handlerV2 with gen and custom")
 }
 
 var CmdGen = &cobra.Command{
@@ -42,6 +44,7 @@ var CmdGen = &cobra.Command{
 			packageName:        moduleName,
 			src:                src,
 			output:             output,
+			handlerV2:          handlerV2,
 			needRequestLog:     requestLog,
 			routerPrefix:       strings.TrimLeft(viper.GetString("App.RouterPrefix"), "/"),
 			addr:               ":" + strings.TrimLeft(viper.GetString("App.Addr"), ":"),

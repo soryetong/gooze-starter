@@ -96,6 +96,11 @@ func FileIsExist(path string) (bool, error) {
 
 // 保存文件
 func SaveFile(file *multipart.FileHeader, dst string) error {
+	dir := filepath.Dir(dst)
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return err
+	}
+
 	src, err := file.Open()
 	if err != nil {
 		return err

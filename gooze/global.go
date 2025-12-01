@@ -17,12 +17,14 @@ import (
 var (
 	dbMap sync.Map
 
-	Config *BaseConfig
-	Log    *iLog
-	Cache  *gzcache.CacheNode
-	Casbin *casbinV2.SyncedEnforcer
-	Rdb    redis.Cmdable
-	Mdb    *mongo.Client
+	SyncMap   sync.Map               // 适合读多写少的场景
+	NormalMap map[string]interface{} // 并发安全的 map
+	Config    *BaseConfig
+	Log       *iLog
+	Cache     *gzcache.CacheNode
+	Casbin    *casbinV2.SyncedEnforcer
+	Rdb       redis.Cmdable
+	Mdb       *mongo.Client
 )
 
 func Run() {

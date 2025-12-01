@@ -20,6 +20,7 @@ type gaContext struct {
 	packageName       string // 主包名
 	src               string
 	output            string
+	handlerV2         bool
 	routerPrefix      string
 	addr              string
 	needRequestLog    bool
@@ -116,7 +117,7 @@ func (self *generator) Do() (err error) {
 		return err
 	}
 
-	return self.start(self.src)
+	return self.start(strings.TrimPrefix(self.src, "./"))
 }
 
 func trimBeforeKeyword(path, keyword string) string {
@@ -128,6 +129,10 @@ func trimBeforeKeyword(path, keyword string) string {
 }
 
 func (self *generator) start(filename string) (err error) {
+	if filepath.Ext(filename) != ".api" {
+		gzconsole.Echo.Warn(filename, "文件类型不支持, 将不解析\n")
+		return nil
+	}
 	gzconsole.Echo.Debugf("开始API文件: %s 内容读取", filename)
 
 	newFilePath := gzutil.Ternary(filepath.IsAbs(filename), trimBeforeKeyword(filename, self.packageName), filename)
@@ -147,7 +152,6 @@ func (self *generator) start(filename string) (err error) {
 	nowFilePrefixName := filepath.Base(strings.TrimSuffix(filename, filepath.Ext(filename)))
 	self.fileName = nowFilePrefixName + ".go"
 	self.nowFilePrefixName = nowFilePrefixName
-	self.hookList = append(self.hookList, gzutil.UcFirst(nowFilePrefixName))
 	parts := strings.FieldsFunc(nowFilePrefixName, func(r rune) bool {
 		return r == ',' || r == ';' || r == '|' || r == ':' || r == '_' || r == '-'
 	})
@@ -197,7 +201,13 @@ func (self *generator) start(filename string) (err error) {
 
 	// Step 5: Generate Handler.
 	self.handlerPackagePath = filepath.Join(self.basePackagePath, self.handlerPackageName)
-	if err = self.GenHandler(); err != nil {
+	if self.handlerV2 {
+		self.hookList = append(self.hookList, gzutil.UcFirst(nowFilePrefixName))
+		err = self.GenHandlerV2()
+	} else {
+		err = self.GenHandler()
+	}
+	if err != nil {
 		return err
 	}
 	gzconsole.Echo.Debug("✅ 已完成Handler代码生成\n")
