@@ -1,9 +1,8 @@
 package gzutil
 
 import (
-	"math/rand"
+	"math/rand/v2"
 	"strings"
-	"time"
 	"unsafe"
 
 	uuid "github.com/satori/go.uuid"
@@ -22,34 +21,30 @@ func GenerateNoWhippletreeUuid() string {
 	return uuidStr
 }
 
-var src = rand.NewSource(time.Now().UnixNano())
-
 const (
-	letters = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-	// 6 bits to represent a letter index
+	letters      = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	letterIdBits = 6
-	// All 1-bits as many as letterIdBits
-	letterIdMask = 1<<letterIdBits - 1
+	letterIdMask = 1<<letterIdBits - 1 // 0b111111
 	letterIdMax  = 63 / letterIdBits
 )
 
 func RandString(n int) string {
 	b := make([]byte, n)
-	// A rand.Int63() generates 63 random bits, enough for letterIdMax letters!
-	for i, cache, remain := n-1, src.Int63(), letterIdMax; i >= 0; {
+	for i, cache, remain := n-1, rand.Int64(), letterIdMax; i >= 0; {
 		if remain == 0 {
-			cache, remain = src.Int63(), letterIdMax
+			cache, remain = rand.Int64(), letterIdMax
 		}
+
 		if idx := int(cache & letterIdMask); idx < len(letters) {
 			b[i] = letters[idx]
 			i--
 		}
+
 		cache >>= letterIdBits
 		remain--
 	}
 
-	return *(*string)(unsafe.Pointer(&b))
+	return unsafe.String(&b[0], len(b))
 }
 
 func Interval64(min, max int64) int64 {
@@ -65,5 +60,5 @@ func Interval64(min, max int64) int64 {
 		min, max = max, min
 	}
 
-	return rand.Int63n(max-min) + min
+	return rand.Int64N(max-min) + min
 }

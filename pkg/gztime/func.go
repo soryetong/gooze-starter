@@ -23,3 +23,11 @@ func TimeInTimeRange(checkTime, start, end time.Time) bool {
 
 	return current.After(s) && current.Before(e)
 }
+
+// 获取某一天的开始和结束时间
+func GetDayRange(t time.Time) (time.Time, time.Time) {
+	startTime := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+	endTime := startTime.AddDate(0, 0, 1)
+
+	return startTime, endTime
+}

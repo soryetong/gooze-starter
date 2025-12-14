@@ -10,6 +10,7 @@
 - `gzerror/`：错误类
 - `gzhttp/`：封装统一的 HTTP 请求发送逻辑
 - `gzmiddleware/`：中间件
+- `gztime/`：时间
 - `gzutil/`：工具类
 
 ## 设计原则：
