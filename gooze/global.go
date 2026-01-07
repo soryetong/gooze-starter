@@ -7,7 +7,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/jmoiron/sqlx"
 	"github.com/soryetong/gooze-starter/gzconsole"
-	"github.com/soryetong/gooze-starter/pkg/gzcache"
+	"github.com/soryetong/gooze-starter/services/gzcache"
 	"go.mongodb.org/mongo-driver/mongo"
 	"gorm.io/gorm"
 

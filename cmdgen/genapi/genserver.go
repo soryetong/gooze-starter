@@ -22,8 +22,8 @@ import (
 	"github.com/soryetong/gooze-starter/gooze"
 	"github.com/soryetong/gooze-starter/pkg/gzutil"
 	"github.com/soryetong/gooze-starter/modules/httpmodule"
-	"{{ .RouterPackagePath}}"
-	"{{ .HandlerPackagePath}}"
+	"{{ .RouterPackagePath}}"{{if gt (len .Hooks) 0}}
+	"{{ .HandlerPackagePath}}"{{end}}
 )
 
 func init() {

@@ -1,4 +1,4 @@
-package gzpermission
+package gzauth
 
 import (
 	"context"

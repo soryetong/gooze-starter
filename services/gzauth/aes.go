@@ -5,24 +5,20 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/base64"
-	"fmt"
 )
 
 var aesKey = []byte("")
 
 func SetAESKey(key string) {
-	fmt.Println("SetAESKey:", key)
 	aesKey = []byte(key)
 }
 
-// PKCS7 补码
 func pkcs7Padding(data []byte, blockSize int) []byte {
 	padding := blockSize - len(data)%blockSize
 	padText := bytes.Repeat([]byte{byte(padding)}, padding)
 	return append(data, padText...)
 }
 
-// 去除补码
 func pkcs7UnPadding(data []byte) []byte {
 	length := len(data)
 	unPadding := int(data[length-1])

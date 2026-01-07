@@ -11,8 +11,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/soryetong/gooze-starter/gooze"
-	"github.com/soryetong/gooze-starter/pkg/gzauth"
 	"github.com/soryetong/gooze-starter/pkg/gzutil"
+	"github.com/soryetong/gooze-starter/services/gzauth"
 	"go.uber.org/zap"
 )
 

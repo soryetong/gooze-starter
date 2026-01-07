@@ -15,9 +15,9 @@ import (
 type OssType string
 
 const (
-	OssTypeLocal  OssType = "local"
-	OssTypeQiNiu  OssType = "qiniu"
-	OssTypeAliYun OssType = "aliyun"
+	Oss_Local  OssType = "local"
+	Oss_QiNiu  OssType = "qiniu"
+	Oss_AliYun OssType = "aliyun"
 )
 
 type UploadRet struct {
@@ -37,15 +37,15 @@ func New(ossType OssType) oss {
 }
 
 func NewAliYun() oss {
-	return start(OssTypeAliYun)
+	return start(Oss_AliYun)
 }
 
 func NewQiNiu() oss {
-	return start(OssTypeQiNiu)
+	return start(Oss_QiNiu)
 }
 
 func NewLocal() oss {
-	return start(OssTypeLocal)
+	return start(Oss_Local)
 }
 
 func NewByConf() oss {
@@ -54,11 +54,11 @@ func NewByConf() oss {
 
 func start(ossType OssType) oss {
 	switch ossType {
-	case OssTypeAliYun:
+	case Oss_AliYun:
 		c := &aliYun{}
 		c.init()
 		return c
-	case OssTypeQiNiu:
+	case Oss_QiNiu:
 		return &qiNiu{}
 	default:
 		return &local{}
@@ -70,11 +70,9 @@ func getUploadDirAndFilename(fileHeader *multipart.FileHeader, uploadDir ...stri
 	var dir string
 	if len(uploadDir) > 0 {
 		dir = uploadDir[0]
-	} else {
-		dir = viper.GetString("Oss.SavePath")
 	}
 	if dir == "" {
-		dir = "./static/storage/attach/"
+		dir = "./static/attach/"
 	}
 	dir = strings.TrimRight(dir, "/") + "/"
 
@@ -93,11 +91,9 @@ func getUploadDirAndFilenameByBytes(fileBytes []byte, ext string, uploadDir ...s
 	var dir string
 	if len(uploadDir) > 0 {
 		dir = uploadDir[0]
-	} else {
-		dir = viper.GetString("Oss.SavePath")
 	}
 	if dir == "" {
-		dir = "./static/storage/attach/"
+		dir = "./static/attach/"
 	}
 	dir = strings.TrimRight(dir, "/") + "/"
 

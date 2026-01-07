@@ -6,9 +6,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/soryetong/gooze-starter/gooze"
 	"github.com/soryetong/gooze-starter/gzconsole"
-	"github.com/soryetong/gooze-starter/pkg/gzauth"
 	"github.com/soryetong/gooze-starter/pkg/gzerror"
 	"github.com/soryetong/gooze-starter/pkg/gzutil"
+	"github.com/soryetong/gooze-starter/services/gzauth"
 	"github.com/spf13/cast"
 	"github.com/spf13/viper"
 )

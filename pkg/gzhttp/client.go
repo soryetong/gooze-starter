@@ -16,10 +16,10 @@ import (
 )
 
 const (
-	MethodGET    = "GET"
-	MethodPOST   = "POST"
-	MethodPUT    = "PUT"
-	MethodDELETE = "DELETE"
+	Method_GET    = "GET"
+	Method_POST   = "POST"
+	Method_PUT    = "PUT"
+	Method_DELETE = "DELETE"
 )
 
 // RequestConfig 封装请求参数
@@ -48,7 +48,7 @@ func DoRequest(cfg RequestConfig) ([]byte, int, error) {
 	var bodyReader io.Reader
 
 	method := strings.ToUpper(cfg.Method)
-	if method == MethodGET || method == MethodDELETE {
+	if method == Method_GET || method == Method_DELETE {
 		q := parsedUrl.Query()
 		for k, v := range cfg.Params {
 			q.Set(k, cast.ToString(v))

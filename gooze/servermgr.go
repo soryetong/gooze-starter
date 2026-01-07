@@ -12,8 +12,8 @@ import (
 
 var serviceMgrCmd = &cobra.Command{
 	Use:    "Start",
-	Short:  "Web项目的服务启动",
-	Long:   `通过注册你指定的路由启动一个HTTP服务`,
+	Short:  "Web 项目的服务启动",
+	Long:   `通过注册你指定的路由启动一个 HTTP 服务`,
 	Hidden: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		defer closeServiceMgr()

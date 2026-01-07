@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/soryetong/gooze-starter/gzconsole"
-	"github.com/soryetong/gooze-starter/pkg/gzcache"
 	"github.com/soryetong/gooze-starter/pkg/gzutil"
+	"github.com/soryetong/gooze-starter/services/gzcache"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
