@@ -28,7 +28,7 @@ import (
 func Init{{.NowGroupName}}Router(routerGroup *gin.RouterGroup) {
 {{range .Routes}}{{.GroupName}}Group := routerGroup.Group("/{{.RouteGroup}}")
 {{"{"}}{{range .Routes}}
-	{{.GroupName}}Group.{{.Method}}("/{{.Path}}", gooze.Adapter({{.HandlerPackName}}.{{.HandlerName}})){{end}}
+	{{.GroupName}}Group.{{.Method}}("/{{.Path}}", gooze.HandlerAdapter({{.HandlerPackName}}.{{.HandlerName}})){{end}}
 {{"}"}}{{end}}
 }
 `
@@ -37,7 +37,7 @@ const routerFuncContent = `
 func Init{{.NowGroupName}}Router(routerGroup *gin.RouterGroup) {
 {{range .Routes}}{{.GroupName}}Group := routerGroup.Group("/{{.RouteGroup}}")
 {{"{"}}{{range .Routes}}
-	{{.GroupName}}Group.{{.Method}}("/{{.Path}}", gooze.Adapter({{.HandlerPackName}}.{{.HandlerName}})){{end}}
+	{{.GroupName}}Group.{{.Method}}("/{{.Path}}", gooze.HandlerAdapter({{.HandlerPackName}}.{{.HandlerName}})){{end}}
 {{"}"}}{{end}}
 }
 `
@@ -293,7 +293,7 @@ const enterGoTemplate = `package router
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/soryetong/gooze-starter/pkg/gzmiddleware"
+	"github.com/soryetong/gooze-starter/services/gzmiddleware"
 	"github.com/spf13/viper"
 	"net/http"
 )

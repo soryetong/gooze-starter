@@ -52,32 +52,32 @@ func newILog() {
 	}
 }
 
+func (l *iLog) WithCtx(ctx context.Context) *iLog {
+	var fields []zap.Field
+
+	if traceId := ctx.Value("trace_id"); traceId != nil {
+		if s, ok := traceId.(string); ok && s != "" {
+			fields = append(fields, zap.String("trace_id", s))
+		}
+	}
+
+	if source := ctx.Value("source"); source != nil {
+		if s, ok := source.(string); ok && s != "" {
+			fields = append(fields, zap.String("source", s))
+		}
+	}
+
+	if len(fields) > 0 {
+		return l.With(fields...)
+	}
+
+	return l
+}
+
 func (l *iLog) With(fields ...zap.Field) *iLog {
 	return &iLog{
 		Logger: l.Logger.With(fields...),
 	}
-}
-
-func (l *iLog) WithCtx(ctx context.Context) *iLog {
-	var traceIdStr, sourceStr string
-	traceId := ctx.Value("trace_id")
-	if traceId != nil {
-		traceIdStr, _ = traceId.(string)
-	}
-
-	source := ctx.Value("source")
-	if source != nil {
-		sourceStr, _ = source.(string)
-	}
-
-	if traceIdStr != "" {
-		l.With(zap.String("trace_id", traceIdStr))
-	}
-	if sourceStr != "" {
-		l.With(zap.String("source", sourceStr))
-	}
-
-	return l
 }
 
 // Core is a minimal, fast logger interface. It's designed for library authors

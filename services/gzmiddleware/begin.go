@@ -2,12 +2,12 @@ package gzmiddleware
 
 import (
 	"github.com/gin-gonic/gin"
-	uuid "github.com/satori/go.uuid"
+	"github.com/soryetong/gooze-starter/pkg/gzutil"
 )
 
 func Begin() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		ctx.Set("trace_id", uuid.NewV4().String())
+		ctx.Set("trace_id", gzutil.GenerateUuid())
 		ctx.Set("source", "HttpRequest")
 		ctx.Next()
 	}

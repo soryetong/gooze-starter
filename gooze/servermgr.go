@@ -2,7 +2,6 @@ package gooze
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/soryetong/gooze-starter/gzconsole"
 	"github.com/soryetong/gooze-starter/pkg/gzutil"
@@ -33,8 +32,9 @@ var serviceMgrCmd = &cobra.Command{
 		}
 
 		// 等待所有任务完成
-		_ = eg.Wait()
-		os.Exit(124)
+		if err := eg.Wait(); err != nil {
+			return err
+		}
 		return nil
 	},
 }

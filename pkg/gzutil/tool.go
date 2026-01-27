@@ -5,17 +5,18 @@ import (
 	"strings"
 	"unsafe"
 
-	uuid "github.com/satori/go.uuid"
+	"github.com/google/uuid"
 )
 
-// 生成uuid
+// 生成 uuid
 func GenerateUuid() string {
-	return uuid.NewV4().String()
+	v7, _ := uuid.NewV7()
+	return v7.String()
 }
 
 // 生成不带横杠的32位uuid
 func GenerateNoWhippletreeUuid() string {
-	uuidStr := uuid.NewV4().String()
+	uuidStr := GenerateUuid()
 	uuidStr = strings.ReplaceAll(uuidStr, "-", "")
 
 	return uuidStr

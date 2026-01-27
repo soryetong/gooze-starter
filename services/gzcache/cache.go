@@ -147,6 +147,20 @@ func (c *CacheNode) GetInt64(key string) int64 {
 	return gzutil.Ternary(!exists, 0, cast.ToInt64(value))
 }
 
+// GetString获取一个字符串类型的缓存项）
+func (c *CacheNode) GetNoExtendString(key string) string {
+	value, exists := c.GetNoExtend(key)
+
+	return gzutil.Ternary(!exists, "", cast.ToString(value))
+}
+
+// 获取一个整数类型的缓存项
+func (c *CacheNode) GetNoExtendInt64(key string) int64 {
+	value, exists := c.GetNoExtend(key)
+
+	return gzutil.Ternary(!exists, 0, cast.ToInt64(value))
+}
+
 // Get 获取一个缓存项，自动清理过期项
 // 注：本实现采用 "访问即续命（sliding expiration）" 行为：每次访问如果该条目有 ttl (>0)，会延长其过期时间。
 func (c *CacheNode) Get(key string) (any, bool) {
@@ -171,6 +185,28 @@ func (c *CacheNode) Get(key string) (any, bool) {
 		node.expiresAt = time.Now().Add(node.ttl)
 	}
 	s.moveToHead(node)
+	return node.value, true
+}
+
+// GetNoExtend 获取缓存项（检查过期，但不续期、不更新 LRU）
+// 注：适用于 Token / 配置 / 有绝对过期时间的对象
+func (c *CacheNode) GetNoExtend(key string) (any, bool) {
+	s := c.getShard(key)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	node, exists := s.items[key]
+	if !exists {
+		return nil, false
+	}
+
+	if !node.expiresAt.IsZero() && time.Now().After(node.expiresAt) {
+		s.removeNode(node)
+		delete(s.items, key)
+		s.count.Add(-1)
+		return nil, false
+	}
+
 	return node.value, true
 }
 
